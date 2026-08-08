@@ -1,7 +1,7 @@
 const SUPABASE_URL = "https://fukbeimrpkvdhhwyaptl.supabase.co";
 const SUPABASE_KEY = "sb_publishable_3iRluxnGuf6KTVMVBn9ufg_Qlb7i688";
 
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const addForm = document.getElementById("addForm");
 const taskInput = document.getElementById("taskInput");
@@ -72,7 +72,7 @@ function render() {
 }
 
 async function fetchTasks() {
-  const { data, error } = await supabase
+  const { data, error } = await supabaseClient
     .from("tasks")
     .select("*")
     .order("created_at", { ascending: false });
@@ -90,7 +90,7 @@ async function addTask(text) {
   const trimmed = text.trim();
   if (!trimmed) return;
 
-  const { data, error } = await supabase
+  const { data, error } = await supabaseClient
     .from("tasks")
     .insert({ text: trimmed, is_complete: false })
     .select()
@@ -111,7 +111,7 @@ async function toggleTask(id) {
 
   const completed = !task.completed;
 
-  const { error } = await supabase
+  const { error } = await supabaseClient
     .from("tasks")
     .update({ is_complete: completed })
     .eq("id", id);
@@ -126,7 +126,7 @@ async function toggleTask(id) {
 }
 
 async function deleteTask(id) {
-  const { error } = await supabase.from("tasks").delete().eq("id", id);
+  const { error } = await supabaseClient.from("tasks").delete().eq("id", id);
 
   if (error) {
     console.error("Failed to delete task:", error.message);
