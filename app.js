@@ -1,4 +1,7 @@
-const STORAGE_KEY = "taskChecklist";
+const SUPABASE_URL = "https://fukbeimrpkvdhhwyaptl.supabase.co";
+const SUPABASE_KEY = "sb_publishable_3iRluxnGuf6KTVMVBn9ufg_Qlb7i688";
+
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const addForm = document.getElementById("addForm");
 const taskInput = document.getElementById("taskInput");
@@ -8,23 +11,14 @@ const stats = document.getElementById("stats");
 const taskCount = document.getElementById("taskCount");
 const clearCompletedBtn = document.getElementById("clearCompleted");
 
-let tasks = loadTasks();
+let tasks = [];
 
-function loadTasks() {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    return stored ? JSON.parse(stored) : [];
-  } catch {
-    return [];
-  }
-}
-
-function saveTasks() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
-}
-
-function createId() {
-  return crypto.randomUUID();
+function fromRow(row) {
+  return {
+    id: row.id,
+    text: row.text,
+    completed: row.is_complete ?? false,
+  };
 }
 
 function render() {
@@ -77,38 +71,84 @@ function render() {
   }
 }
 
-function addTask(text) {
+async function fetchTasks() {
+  const { data, error } = await supabase
+    .from("tasks")
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error("Failed to fetch tasks:", error.message);
+    return;
+  }
+
+  tasks = data.map(fromRow);
+  render();
+}
+
+async function addTask(text) {
   const trimmed = text.trim();
   if (!trimmed) return;
 
-  tasks.unshift({
-    id: createId(),
-    text: trimmed,
-    completed: false,
-  });
+  const { data, error } = await supabase
+    .from("tasks")
+    .insert({ text: trimmed, is_complete: false })
+    .select()
+    .single();
 
-  saveTasks();
-  render();
-}
-
-function toggleTask(id) {
-  const task = tasks.find((t) => t.id === id);
-  if (task) {
-    task.completed = !task.completed;
-    saveTasks();
-    render();
+  if (error) {
+    console.error("Failed to add task:", error.message);
+    return;
   }
-}
 
-function deleteTask(id) {
-  tasks = tasks.filter((t) => t.id !== id);
-  saveTasks();
+  tasks.unshift(fromRow(data));
   render();
 }
 
-function clearCompleted() {
+async function toggleTask(id) {
+  const task = tasks.find((t) => t.id === id);
+  if (!task) return;
+
+  const completed = !task.completed;
+
+  const { error } = await supabase
+    .from("tasks")
+    .update({ is_complete: completed })
+    .eq("id", id);
+
+  if (error) {
+    console.error("Failed to update task:", error.message);
+    return;
+  }
+
+  task.completed = completed;
+  render();
+}
+
+async function deleteTask(id) {
+  const { error } = await supabase.from("tasks").delete().eq("id", id);
+
+  if (error) {
+    console.error("Failed to delete task:", error.message);
+    return;
+  }
+
+  tasks = tasks.filter((t) => t.id !== id);
+  render();
+}
+
+async function clearCompleted() {
+  const completedIds = tasks.filter((t) => t.completed).map((t) => t.id);
+  if (completedIds.length === 0) return;
+
+  const { error } = await supabase.from("tasks").delete().in("id", completedIds);
+
+  if (error) {
+    console.error("Failed to clear completed tasks:", error.message);
+    return;
+  }
+
   tasks = tasks.filter((t) => !t.completed);
-  saveTasks();
   render();
 }
 
@@ -121,4 +161,4 @@ addForm.addEventListener("submit", (e) => {
 
 clearCompletedBtn.addEventListener("click", clearCompleted);
 
-render();
+fetchTasks();
